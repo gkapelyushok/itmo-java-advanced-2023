@@ -11,6 +11,13 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class StudentDB implements StudentQuery {
+    private static final Comparator<Student> NAME_ORDER = Comparator
+            .comparing(Student::getLastName)
+            .thenComparing(Student::getFirstName)
+            .reversed()
+            .thenComparing(Student::getId);
+
+    private static final Comparator<Student> ID_ORDER = Student::compareTo;
     @Override
     public List<String> getFirstNames(List<Student> students) {
         return toList(getProperty(students, Student::getFirstName));
@@ -113,11 +120,4 @@ public class StudentDB implements StudentQuery {
     }
 
     //:note: top at class
-    private static final Comparator<Student> NAME_ORDER = Comparator
-            .comparing(Student::getLastName)
-            .thenComparing(Student::getFirstName)
-            .reversed()
-            .thenComparing(Student::getId);
-
-    private static final Comparator<Student> ID_ORDER = Student::compareTo;
 }
