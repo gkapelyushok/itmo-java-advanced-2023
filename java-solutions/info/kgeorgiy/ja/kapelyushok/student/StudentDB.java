@@ -112,6 +112,7 @@ public class StudentDB implements StudentQuery {
                 .collect(Collectors.toList());
     }
 
+    //:note: top at class
     private static final Comparator<Student> NAME_ORDER = Comparator
             .comparing(Student::getLastName)
             .thenComparing(Student::getFirstName)
