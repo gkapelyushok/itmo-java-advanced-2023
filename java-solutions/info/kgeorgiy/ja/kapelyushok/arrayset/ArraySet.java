@@ -103,7 +103,7 @@ public class ArraySet<E extends Comparable<E>> extends AbstractSet<E> implements
     }
 
     private int compare(E element1, E element2) {
-        return comparator() == null ? element1.compareTo(element2) : comparator().compare(element1, element2);
+        return comparator.compare(element1, element2);
     }
 
     private ArraySet<E> subSet(int fromIndex, int toIndex) {
