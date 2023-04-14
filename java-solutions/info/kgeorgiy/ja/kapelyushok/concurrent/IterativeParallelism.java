@@ -65,7 +65,7 @@ public class IterativeParallelism implements ListIP {
                 try {
                     thread.join();
                 } catch (InterruptedException ignored) {
-
+                    // :NOTE: ошибки не надо игнорировать
                 }
             });
             return result;
