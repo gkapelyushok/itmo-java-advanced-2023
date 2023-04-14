@@ -37,6 +37,7 @@ public class ParallelMapperImpl implements ParallelMapper {
      */
     public ParallelMapperImpl(int threads) {
         threadsList = Stream.generate(() ->
+            // :NOTE: runnable создается заново на каждый тред
                 new Thread(() -> {
                     try {
                         Runnable task;
@@ -52,6 +53,7 @@ public class ParallelMapperImpl implements ParallelMapper {
                     } catch (InterruptedException ignored) {
 
                     } finally {
+                        // :NOTE: зачем?
                         Thread.currentThread().interrupt();
                     }
                 }
@@ -74,7 +76,9 @@ public class ParallelMapperImpl implements ParallelMapper {
             synchronized (tasks) {
                 tasks.add(() -> {
                     result.set(i, f.apply(args.get(i)));
+                    // :NOTE: логика counterа должна быть в counterе
                     synchronized (counter) {
+                        // :NOTE: эти изменения могут быть не видны другим потокам
                         counter.increment();
                         if (counter.getCnt() == result.size()) {
                             counter.notify();
@@ -92,6 +96,7 @@ public class ParallelMapperImpl implements ParallelMapper {
         return result;
     }
 
+    // :NOTE: все таски должны завершиться
     /** Stops all threads. All unfinished mappings are left in undefined state. */
     @Override
     public void close() {
@@ -101,7 +106,7 @@ public class ParallelMapperImpl implements ParallelMapper {
                 try {
                     thread.join();
                 } catch (InterruptedException ignored) {
-
+                    // :NOTE: не надо игнорировать ошибки
                 }
             });
         }
