@@ -54,15 +54,20 @@ public class IterativeParallelism implements ListIP {
         List<List<? extends T>> lists = splitOnBlocks(threads, values);
 
         if (parallelMapper == null) {
-            Thread[] threadArray = new Thread[threads];
+            List<Thread> threadList = new ArrayList<>();
             List<R> result = new ArrayList<>(Collections.nCopies(threads, null));
             IntStream.range(0, threads).forEach( i -> {
-                threadArray[i] = new Thread(() -> result.set(i, function.apply(lists.get(i))));
-                threadArray[i].start();
+                Thread thread = new Thread(() -> result.set(i, function.apply(lists.get(i))));
+                thread.start();
+                threadList.add(thread);
             });
-            for (int i = 0; i < threads; i++) {
-                threadArray[i].join();
-            }
+            threadList.forEach(thread -> {
+                try {
+                    thread.join();
+                } catch (InterruptedException ignored) {
+
+                }
+            });
             return result;
         }
         return parallelMapper.map(function, lists);
