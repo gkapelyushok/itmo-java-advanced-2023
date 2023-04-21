@@ -17,7 +17,7 @@ public class ParallelMapperImpl implements ParallelMapper {
     private final List<Thread> threadsList;
 
     private static class ResultList<R> {
-        private List<R> result;
+        private final List<R> result;
         private int cnt;
 
         public ResultList(int n) {
@@ -64,10 +64,7 @@ public class ParallelMapperImpl implements ParallelMapper {
             } catch (InterruptedException ignored) {
             }
         };
-        threadsList = Stream.generate(() ->
-            // :NOTE: runnable создается заново на каждый тред
-                new Thread(runnable)
-        ).limit(threads).collect(Collectors.toList());
+        threadsList = Stream.generate(() -> new Thread(runnable)).limit(threads).collect(Collectors.toList());
         threadsList.forEach(Thread::start);
     }
 
@@ -84,7 +81,6 @@ public class ParallelMapperImpl implements ParallelMapper {
             synchronized (tasks) {
                 tasks.add(() -> {
                     resultList.set(i, f.apply(args.get(i)));
-                    // :NOTE: логика counterа должна быть в counterе
                 });
                 tasks.notify();
             }
@@ -92,11 +88,11 @@ public class ParallelMapperImpl implements ParallelMapper {
         return resultList.getResult();
     }
 
-    // :NOTE: все таски должны завершиться
     /** Stops all threads. All unfinished mappings are left in undefined state. */
     @Override
     public void close() {
         threadsList.forEach(Thread::interrupt);
+        // :NOTE: здесь была завязка на Thread::isInterrupted и был бесконечный цикл
         while (threadsList.stream().anyMatch(Thread::isAlive)) {
             threadsList.forEach(thread -> {
                 try {
