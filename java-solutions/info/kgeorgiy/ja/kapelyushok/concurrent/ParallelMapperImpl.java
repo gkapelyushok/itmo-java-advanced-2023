@@ -97,7 +97,7 @@ public class ParallelMapperImpl implements ParallelMapper {
     @Override
     public void close() {
         threadsList.forEach(Thread::interrupt);
-        while (!threadsList.stream().allMatch(Thread::isInterrupted)) {
+        while (threadsList.stream().anyMatch(Thread::isAlive)) {
             threadsList.forEach(thread -> {
                 try {
                     thread.join();
