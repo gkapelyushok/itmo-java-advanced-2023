@@ -50,8 +50,10 @@ public class IterativeParallelism implements ListIP {
 
     // :NOTE: уже есть map, нужно добавить reduce
     private <T, R> R getResult(int threads, List<? extends T> values, Function<Stream<? extends T>, R> mapper, Function<Stream<R>, R> reducer) throws InterruptedException {
-
         threads = Math.min(threads, values.size());
+        if (threads == 0) {
+            throw new IllegalArgumentException("Number of threads can't be 0");
+        }
         List<Stream<? extends T>> blocks = splitOnBlocks(threads, values);
 
         if (parallelMapper == null) {
@@ -68,6 +70,7 @@ public class IterativeParallelism implements ListIP {
                     thread.join();
                 } catch (InterruptedException e) {
                     // :NOTE: можно сказать остальным тредам, чтобы они завершались быстрее -- поинтерраптить
+                    thread.interrupt();
                     if (interruptedException == null) {
                         interruptedException = e;
                     } else {
