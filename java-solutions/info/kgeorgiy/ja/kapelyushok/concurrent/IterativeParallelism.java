@@ -67,8 +67,7 @@ public class IterativeParallelism implements ListIP {
                 try {
                     thread.join();
                 } catch (InterruptedException e) {
-                    // :NOTE: ошибки не надо игнорировать
-                    // надо завершить все треды
+                    // :NOTE: можно сказать остальным тредам, чтобы они завершались быстрее -- поинтерраптить
                     if (interruptedException == null) {
                         interruptedException = e;
                     } else {
