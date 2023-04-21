@@ -8,6 +8,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  * Class implementing {@link ListIP}.
@@ -31,8 +32,8 @@ public class IterativeParallelism implements ListIP {
     }
 
 
-    private <T> List<List<? extends T>> splitOnBlocks(int threads, List<? extends T> values) {
-        List<List<? extends T>> blocks = new ArrayList<>();
+    private <T> List<Stream<? extends T>> splitOnBlocks(int threads, List<? extends T> values) {
+        List<Stream<? extends T>> blocks = new ArrayList<>();
         int blockSize = values.size() / threads;
         int mod = values.size() % threads;
         int left = 0;
@@ -41,37 +42,46 @@ public class IterativeParallelism implements ListIP {
             int realBlockSize = blockSize + (mod > 0 ? 1 : 0);
             mod--;
             right = left + realBlockSize;
-            blocks.add(values.subList(left, right));
+            blocks.add(values.subList(left, right).stream());
             left = right;
         }
         return blocks;
     }
 
     // :NOTE: уже есть map, нужно добавить reduce
-    private <T, R> List<R> getResult(int threads, List<? extends T> values, Function<List<? extends T>, R> function) throws InterruptedException {
+    private <T, R> R getResult(int threads, List<? extends T> values, Function<Stream<? extends T>, R> mapper, Function<Stream<R>, R> reducer) throws InterruptedException {
 
         threads = Math.min(threads, values.size());
-        List<List<? extends T>> lists = splitOnBlocks(threads, values);
+        List<Stream<? extends T>> blocks = splitOnBlocks(threads, values);
 
         if (parallelMapper == null) {
             List<Thread> threadList = new ArrayList<>();
             List<R> result = new ArrayList<>(Collections.nCopies(threads, null));
             IntStream.range(0, threads).forEach( i -> {
-                Thread thread = new Thread(() -> result.set(i, function.apply(lists.get(i))));
+                Thread thread = new Thread(() -> result.set(i, mapper.apply(blocks.get(i))));
                 thread.start();
                 threadList.add(thread);
             });
-            threadList.forEach(thread -> {
+            InterruptedException interruptedException = null;
+            for (Thread thread : threadList) {
                 try {
                     thread.join();
-                } catch (InterruptedException ignored) {
+                } catch (InterruptedException e) {
                     // :NOTE: ошибки не надо игнорировать
                     // надо завершить все треды
+                    if (interruptedException == null) {
+                        interruptedException = e;
+                    } else {
+                        interruptedException.addSuppressed(e);
+                    }
                 }
-            });
-            return result;
+            }
+            if (interruptedException != null) {
+                throw interruptedException;
+            }
+            return reducer.apply(result.stream());
         }
-        return parallelMapper.map(function, lists);
+        return reducer.apply(parallelMapper.map(mapper, blocks).stream());
     }
 
     /**
@@ -84,8 +94,9 @@ public class IterativeParallelism implements ListIP {
      */
     @Override
     public String join(int threads, List<?> values) throws InterruptedException {
-        return getResult(threads, values, l -> l.stream().map(Object::toString).collect(Collectors.joining()))
-            .stream().map(Object::toString).collect(Collectors.joining());
+        return getResult(threads, values,
+                s -> s.map(Object::toString).collect(Collectors.joining()),
+                s -> s.map(Object::toString).collect(Collectors.joining()));
     }
 
     /**
@@ -99,8 +110,9 @@ public class IterativeParallelism implements ListIP {
      */
     @Override
     public <T> List<T> filter(int threads, List<? extends T> values, Predicate<? super T> predicate) throws InterruptedException {
-        return getResult(threads, values, l -> l.stream().filter(predicate).collect(Collectors.toList()))
-            .stream().flatMap(Collection::stream).collect(Collectors.toList());
+        return getResult(threads, values,
+                s -> s.filter(predicate).collect(Collectors.toList()),
+                s -> s.flatMap(Collection::stream).collect(Collectors.toList()));
     }
 
     /**
@@ -114,8 +126,9 @@ public class IterativeParallelism implements ListIP {
      */
     @Override
     public <T, U> List<U> map(int threads, List<? extends T> values, Function<? super T, ? extends U> f) throws InterruptedException {
-        return getResult(threads, values, l -> l.stream().map(f).collect(Collectors.toList()))
-            .stream().flatMap(Collection::stream).collect(Collectors.toList());
+        return getResult(threads, values,
+                s -> s.map(f).collect(Collectors.toList()),
+                s -> s.flatMap(Collection::stream).collect(Collectors.toList()));
     }
 
     /**
@@ -130,7 +143,9 @@ public class IterativeParallelism implements ListIP {
      */
     @Override
     public <T> T maximum(int threads, List<? extends T> values, Comparator<? super T> comparator) throws InterruptedException {
-        return getResult(threads, values, l -> l.stream().max(comparator).orElseThrow()).stream().max(comparator).orElseThrow();
+        return getResult(threads, values,
+                s -> s.max(comparator).orElseThrow(),
+                s -> s.max(comparator).orElseThrow());
     }
 
     /**
@@ -159,7 +174,9 @@ public class IterativeParallelism implements ListIP {
      */
     @Override
     public <T> boolean all(int threads, List<? extends T> values, Predicate<? super T> predicate) throws InterruptedException {
-        return getResult(threads, values, l -> l.stream().allMatch(predicate)).stream().allMatch(Boolean::booleanValue);
+        return getResult(threads, values,
+                s -> s.allMatch(predicate),
+                s -> s.allMatch(Boolean::booleanValue));
     }
 
     /**
@@ -187,7 +204,8 @@ public class IterativeParallelism implements ListIP {
      */
     @Override
     public <T> int count(int threads, List<? extends T> values, Predicate<? super T> predicate) throws InterruptedException {
-        return (int) getResult(threads, values, l -> l.stream().filter(predicate).count())
-            .stream().mapToLong(Long::longValue).sum();
+        return getResult(threads, values,
+                s -> (int) s.filter(predicate).count(),
+                s -> s.mapToInt(Integer::intValue).sum());
     }
 }
