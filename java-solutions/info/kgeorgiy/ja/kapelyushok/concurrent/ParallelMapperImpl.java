@@ -16,15 +16,28 @@ public class ParallelMapperImpl implements ParallelMapper {
     private final Queue<Runnable> tasks = new LinkedList<>();
     private final List<Thread> threadsList;
 
-    private static class Counter {
-        private int cnt = 0;
+    private static class ResultList<R> {
+        private List<R> result;
+        private int cnt;
 
-        private int getCnt() {
-            return cnt;
+        public ResultList(int n) {
+            result = new ArrayList<>(Collections.nCopies(n, null));
+            cnt = 0;
         }
 
-        private void increment() {
+        public synchronized void set(int i, R value) {
+            result.set(i, value);
             cnt++;
+            if (cnt == result.size()) {
+                notify();
+            }
+        }
+
+        public synchronized List<R> getResult() throws InterruptedException {
+            while (cnt != result.size()) {
+                wait();
+            }
+            return result;
         }
     }
 
@@ -36,28 +49,24 @@ public class ParallelMapperImpl implements ParallelMapper {
      * @param threads count of threads
      */
     public ParallelMapperImpl(int threads) {
+        Runnable runnable = () -> {
+            try {
+                Runnable task;
+                while (!Thread.interrupted()) {
+                    synchronized (tasks) {
+                        while (tasks.isEmpty()) {
+                            tasks.wait();
+                        }
+                        task = tasks.poll();
+                    }
+                    task.run();
+                }
+            } catch (InterruptedException ignored) {
+            }
+        };
         threadsList = Stream.generate(() ->
             // :NOTE: runnable создается заново на каждый тред
-                new Thread(() -> {
-                    try {
-                        Runnable task;
-                        while (!Thread.interrupted()) {
-                            synchronized (tasks) {
-                                while (tasks.isEmpty()) {
-                                    tasks.wait();
-                                }
-                                task = tasks.poll();
-                            }
-                            task.run();
-                        }
-                    } catch (InterruptedException ignored) {
-
-                    } finally {
-                        // :NOTE: зачем?
-                        Thread.currentThread().interrupt();
-                    }
-                }
-                )
+                new Thread(runnable)
         ).limit(threads).collect(Collectors.toList());
         threadsList.forEach(Thread::start);
     }
@@ -70,43 +79,29 @@ public class ParallelMapperImpl implements ParallelMapper {
      */
     @Override
     public <T, R> List<R> map(Function<? super T, ? extends R> f, List<? extends T> args) throws InterruptedException {
-        List<R> result = new ArrayList<>(Collections.nCopies(args.size(), null));
-        final Counter counter = new Counter();
+        ResultList<R> resultList = new ResultList<>(args.size());
         IntStream.range(0, args.size()).forEach(i -> {
             synchronized (tasks) {
                 tasks.add(() -> {
-                    result.set(i, f.apply(args.get(i)));
+                    resultList.set(i, f.apply(args.get(i)));
                     // :NOTE: логика counterа должна быть в counterе
-                    synchronized (counter) {
-                        // :NOTE: эти изменения могут быть не видны другим потокам
-                        counter.increment();
-                        if (counter.getCnt() == result.size()) {
-                            counter.notify();
-                        }
-                    }
                 });
                 tasks.notify();
             }
         });
-        synchronized (counter) {
-            while (counter.getCnt() != result.size()) {
-                counter.wait();
-            }
-        }
-        return result;
+        return resultList.getResult();
     }
 
     // :NOTE: все таски должны завершиться
     /** Stops all threads. All unfinished mappings are left in undefined state. */
     @Override
     public void close() {
-        synchronized (threadsList) {
-            threadsList.forEach(Thread::interrupt);
+        threadsList.forEach(Thread::interrupt);
+        while (!threadsList.stream().allMatch(Thread::isInterrupted)) {
             threadsList.forEach(thread -> {
                 try {
                     thread.join();
                 } catch (InterruptedException ignored) {
-                    // :NOTE: не надо игнорировать ошибки
                 }
             });
         }
