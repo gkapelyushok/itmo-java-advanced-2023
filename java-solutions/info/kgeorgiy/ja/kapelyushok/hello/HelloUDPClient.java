@@ -62,6 +62,7 @@ public class HelloUDPClient implements HelloClient {
             String requestString = prefix + threadId + "_" + requestId;
             DatagramPacket requestPacket = Utils.getRequestPacket(requestString, socketAddress);
             DatagramPacket responsePacket = Utils.getResponsePacket(socket);
+            String regex = "[\\D]*" + threadId + "[\\D]+" + requestId + "[\\D]*";
             while (true) {
                 try {
                     socket.send(requestPacket);
@@ -75,7 +76,8 @@ public class HelloUDPClient implements HelloClient {
                         responseString = responseString.substring(0, i) + Character.getNumericValue(responseString.charAt(i)) + responseString.substring(i + 1);
                     }
                 }
-                if (responseString.matches("[\\D]*" + threadId + "[\\D]+" + requestId + "[\\D]*")) {
+
+                if (responseString.matches(regex)) {
                     break;
                 }
             }
