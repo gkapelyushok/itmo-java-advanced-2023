@@ -29,6 +29,7 @@ public class HelloUDPClient implements HelloClient {
         private final String prefix;
         private final int threads;
         private final int requests;
+        private final static String responseRegex = "[\\D]*%d[\\D]+%d[\\D]*";
         private final static int TIMEOUT = 100;
 
         public Sender(String host, int port, String prefix, int threads, int requests) {
@@ -62,7 +63,7 @@ public class HelloUDPClient implements HelloClient {
             String requestString = prefix + threadId + "_" + requestId;
             DatagramPacket requestPacket = Utils.getRequestPacket(requestString, socketAddress);
             DatagramPacket responsePacket = Utils.getResponsePacket(socket);
-            String regex = "[\\D]*" + threadId + "[\\D]+" + requestId + "[\\D]*";
+            String expectedResponseString = String.format(responseRegex, threadId, requestId);
             while (true) {
                 try {
                     socket.send(requestPacket);
@@ -77,7 +78,7 @@ public class HelloUDPClient implements HelloClient {
                     }
                 }
 
-                if (responseString.matches(regex)) {
+                if (responseString.matches(expectedResponseString)) {
                     break;
                 }
             }
