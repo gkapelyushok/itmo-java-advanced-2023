@@ -1,26 +1,24 @@
 package info.kgeorgiy.ja.kapelyushok.bank;
 
 import java.rmi.*;
+import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
 import java.rmi.server.*;
-import java.net.*;
 
 public final class Server {
-    private final static int DEFAULT_PORT = 8888;
+    private final static int PORT = 8888;
 
-    public static void main(final String... args) {
-        final int port = args.length > 0 ? Integer.parseInt(args[0]) : DEFAULT_PORT;
-
+    public static void main(final String... args) throws RemoteException {
+        final int port = args.length > 0 ? Integer.parseInt(args[0]) : PORT;
+        Registry registry = LocateRegistry.createRegistry(port);
         final Bank bank = new RemoteBank(port);
         try {
-            UnicastRemoteObject.exportObject(bank, port);
-            Naming.rebind("//localhost/bank", bank);
-            System.out.println("Server started");
+            Bank stub = (Bank) UnicastRemoteObject.exportObject(bank, port);
+            registry.rebind("bank", stub);
         } catch (final RemoteException e) {
             System.out.println("Cannot export object: " + e.getMessage());
             e.printStackTrace();
             System.exit(1);
-        } catch (final MalformedURLException e) {
-            System.out.println("Malformed URL");
         }
     }
 }

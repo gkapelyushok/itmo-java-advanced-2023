@@ -20,7 +20,7 @@ public class BankTest {
     private static final int PORT = 8888;
     private static Bank bank;
     private static Registry registry;
-    private static final String ACCOUNT_ID = "%s:%d";
+    private static final String ACCOUNT_ID = "%s:%s";
 
     @BeforeClass
     public static void beforeAll() throws RemoteException {
@@ -101,6 +101,7 @@ public class BankTest {
                 System.err.println("RemoteException while testing parallel accounts: "+ e.getMessage());
             }
         }));
+        workers.close();
     }
 
     @Test
@@ -119,6 +120,25 @@ public class BankTest {
                 System.err.println("RemoteException while testing parallel persons: "+ e.getMessage());
             }
         }));
+        workers.close();
     }
+
+    @Test
+    public void test06_client() throws RemoteException {
+        String firstName = "test06_firstName";
+        String lastName = "test06_lastName";
+        String passport = "test06_passport";
+        String subId = "test06_subId";
+        String amount1 = "30";
+        Client.main(firstName, lastName, passport, subId, amount1);
+        Account account = bank.getAccount(String.format(ACCOUNT_ID, passport, subId));
+        Assert.assertNotNull(account);
+        Assert.assertEquals(30, account.getAmount());
+        String amount2 = "70";
+        Client.main(firstName, lastName, passport, subId, amount2);
+        Assert.assertNotNull(account);
+        Assert.assertEquals(100, account.getAmount());
+    }
+
 
 }

@@ -1,9 +1,9 @@
 package info.kgeorgiy.ja.kapelyushok.bank;
 
-import java.net.MalformedURLException;
-import java.rmi.Naming;
 import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
+import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -30,12 +30,10 @@ public final class Client {
 
         final Bank bank;
         try {
-            bank = (Bank) Naming.lookup("//localhost/bank");
+            Registry registry = LocateRegistry.getRegistry(8888);
+            bank = (Bank) registry.lookup("bank");
         } catch (final NotBoundException e) {
             System.out.println("Bank is not bound");
-            return;
-        } catch (final MalformedURLException e) {
-            System.out.println("Bank URL is invalid");
             return;
         }
 
